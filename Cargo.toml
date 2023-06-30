@@ -1,0 +1,35 @@
+[package]
+name = "rjv"
+version = "0.1.7"
+edition = "2021"
+authors = ["Kelley van Evert <hello@klve.nl>"]
+license = "GPL-3.0-or-later"
+homepage = "https://klve.nl"
+description = "Rust, JS, VST"
+
+[workspace]
+members = ["xtask"]
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+# Remove the `assert_process_allocs` feature to allow allocations on the audio
+# thread in debug builds.
+nih_plug = { git = "https://github.com/robbert-vdh/nih-plug.git", features = [
+  "assert_process_allocs",
+] }
+# Uncomment the below line to disable the on-by-default VST3 feature to remove
+# the GPL compatibility requirement
+# nih_plug = { git = "https://github.com/robbert-vdh/nih-plug.git", default_features = false, features = ["assert_process_allocs"] }
+nih_plug_iced = { git = "https://github.com/robbert-vdh/nih-plug.git" }
+js-sandbox = "0.1.6"
+
+[profile.release]
+lto = "thin"
+strip = "symbols"
+
+[profile.profiling]
+inherits = "release"
+debug = true
+strip = "none"
