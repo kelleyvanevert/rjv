@@ -2,7 +2,10 @@ use atomic_float::AtomicF32;
 use js_sandbox::Script;
 use nih_plug::prelude::*;
 use nih_plug_egui::{create_egui_editor, egui, widgets, EguiState};
-use std::sync::Arc;
+use std::{
+    fmt::format,
+    sync::{Arc, Mutex},
+};
 
 // This is a shortened version of the gain example with most comments removed, check out
 // https://github.com/robbert-vdh/nih-plug/blob/master/plugins/examples/gain/src/lib.rs to get
@@ -15,7 +18,6 @@ struct Rjv {
     params: Arc<RjvParams>,
     sample_rate: f32,
 
-    code: String,
     time_s: f32,
 
     /// Needed to normalize the peak meter's response based on the sample rate.
@@ -26,6 +28,8 @@ struct Rjv {
     ///
     /// This is stored as voltage gain.
     peak_meter: Arc<AtomicF32>,
+
+    display: Arc<Mutex<String>>,
 }
 
 struct UIState {
@@ -53,6 +57,9 @@ struct RjvParams {
     /// gain parameter is stored as linear gain while the values are displayed in decibels.
     #[id = "gain"]
     pub gain: FloatParam,
+
+    #[id = "code"]
+    pub code: StringParam,
 }
 
 impl Default for Rjv {
@@ -61,11 +68,12 @@ impl Default for Rjv {
             params: Arc::new(RjvParams::default()),
             sample_rate: 1.0,
 
-            code: "Math.sin(t) * 20".to_string(),
             time_s: 0.0,
 
             peak_meter_decay_weight: 1.0,
             peak_meter: Arc::new(AtomicF32::new(util::MINUS_INFINITY_DB)),
+
+            display: Arc::new(Mutex::new("hi".to_string())),
         }
     }
 }
@@ -79,7 +87,7 @@ impl Default for RjvParams {
             // to treat these kinds of parameters as if we were dealing with decibels. Storing this
             // as decibels is easier to work with, but requires a conversion for every sample.
             gain: FloatParam::new(
-                "Mancala",
+                "Blabla",
                 util::db_to_gain(0.0),
                 FloatRange::Skewed {
                     min: util::db_to_gain(-30.0),
@@ -98,6 +106,8 @@ impl Default for RjvParams {
             // `.with_step_size(0.1)` function to get internal rounding.
             .with_value_to_string(formatters::v2s_f32_gain_to_db(2))
             .with_string_to_value(formatters::s2v_f32_gain_to_db()),
+
+            code: StringParam::new("Kelleyy", "12.3".to_string()),
         }
     }
 }
@@ -146,6 +156,7 @@ impl Plugin for Rjv {
     fn editor(&mut self, _async_executor: AsyncExecutor<Self>) -> Option<Box<dyn Editor>> {
         let params = self.params.clone();
         let peak_meter = self.peak_meter.clone();
+        let display = self.display.clone();
 
         create_egui_editor(
             self.params.editor_state.clone(),
@@ -188,10 +199,17 @@ impl Plugin for Rjv {
                     );
 
                     ui.label("JavaScript code");
+                    ui.label(display.as_ref().lock().unwrap().clone());
                     let resp =
                         ui.add(egui::widgets::TextEdit::multiline(&mut state.code).code_editor());
-                    if resp.changed() {
-                        // self.code = state.code.clone();
+
+                    if resp.lost_focus() {
+                        params.code.set_value(state.code.clone());
+                        // setter.begin_set_parameter(&params.code);
+                        // setter.set_parameter(&params.code, state.code.clone());
+                        // setter.end_set_parameter(&params.code);
+
+                        // self.code = state.code.clone(); // WHAT
                     }
 
                     // TODO: Add a proper custom widget instead of reusing a progress bar
@@ -241,13 +259,18 @@ impl Plugin for Rjv {
 
     fn process(
         &mut self,
-        buffer: &mut Buffer,
+        buffer: &mut Buffer, // 1s
         _aux: &mut AuxiliaryBuffers,
         _context: &mut impl ProcessContext<Self>,
     ) -> ProcessStatus {
-        let js_code = format!("function gain(t) {{ return {}; }}", self.code);
+        *self.display.lock().unwrap() = format!("code <{}>", self.params.code.value());
+
+        let js_code = format!(
+            "function gain(t) {{ return {}; }}",
+            self.params.code.value()
+        );
         // let js_code = "function bla([t, g]) { return Math.sin(t) * g; }";
-        let mut script = Script::from_string(&js_code).expect("JS compiles");
+        let mut script = Script::from_string(&js_code).ok();
 
         for (sample_id, channel_samples) in buffer.iter_samples().enumerate() {
             let time = self.time_s + ((sample_id as f32) / self.sample_rate);
@@ -257,10 +280,12 @@ impl Plugin for Rjv {
 
             // Smoothing is optionally built into the parameters themselves
             // let gain = self.params.gain.smoothed.next();
-            let gain_processed: f32 = script.call("gain", &time).expect("JS runs");
+            let gain_processed: Option<f32> =
+                script.as_mut().and_then(|s| s.call("gain", &time).ok());
+            // let gain_processed: f32 = script.call("gain", &time).expect("JS runs");
 
             for sample in channel_samples {
-                *sample *= gain_processed;
+                *sample *= gain_processed.unwrap_or(0.0);
                 amplitude += *sample;
             }
 
