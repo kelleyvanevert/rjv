@@ -1,10 +1,12 @@
 use atomic_float::AtomicF32;
 use js_sandbox::Script;
 use nih_plug::prelude::*;
-use nih_plug_egui::{create_egui_editor, egui, widgets, EguiState};
+use nih_plug_vizia::ViziaState;
 use std::sync::{Arc, Mutex};
+use vizia_editor::create_editor;
 
 mod nih_plug_druid;
+mod vizia_editor;
 
 // This is a shortened version of the gain example with most comments removed, check out
 // https://github.com/robbert-vdh/nih-plug/blob/master/plugins/examples/gain/src/lib.rs to get
@@ -48,7 +50,7 @@ struct RjvParams {
     /// The editor state, saved together with the parameter state so the custom scaling can be
     /// restored.
     #[persist = "editor-state"]
-    editor_state: Arc<EguiState>,
+    editor_state: Arc<ViziaState>,
 
     /// The parameter's ID is used to identify the parameter in the wrappred plugin API. As long as
     /// these IDs remain constant, you can rename and reorder these fields as you wish. The
@@ -80,7 +82,7 @@ impl Default for Rjv {
 impl Default for RjvParams {
     fn default() -> Self {
         Self {
-            editor_state: EguiState::from_size(400, 300),
+            editor_state: ViziaState::from_size(400, 300),
 
             // This gain is stored as linear gain. NIH-plug comes with useful conversion functions
             // to treat these kinds of parameters as if we were dealing with decibels. Storing this
@@ -153,83 +155,10 @@ impl Plugin for Rjv {
     }
 
     fn editor(&mut self, _async_executor: AsyncExecutor<Self>) -> Option<Box<dyn Editor>> {
-        let params = self.params.clone();
-        let peak_meter = self.peak_meter.clone();
-        let display = self.display.clone();
-
-        create_egui_editor(
+        create_editor(
+            self.params.clone(),
+            self.peak_meter.clone(),
             self.params.editor_state.clone(),
-            UIState::default(),
-            |_, _| {},
-            move |egui_ctx, setter, state| {
-                egui::CentralPanel::default().show(egui_ctx, |ui| {
-                    // NOTE: See `plugins/diopser/src/editor.rs` for an example using the generic UI widget
-
-                    // // This is a fancy widget that can get all the information it needs to properly
-                    // // display and modify the parameter from the parametr itself
-                    // // It's not yet fully implemented, as the text is missing.
-                    // ui.label("Some random integer");
-                    // ui.add(widgets::ParamSlider::for_param(&params.some_int, setter));
-
-                    ui.label("Java");
-                    ui.add(widgets::ParamSlider::for_param(&params.gain, setter));
-
-                    ui.heading("JS code");
-
-                    ui.label(
-                        "Also gain, but with a lame widget. Can't even render the value correctly!",
-                    );
-                    // This is a simple naieve version of a parameter slider that's not aware of how
-                    // the parameters work
-                    ui.add(
-                        egui::widgets::Slider::from_get_set(-30.0..=30.0, |new_value| {
-                            match new_value {
-                                Some(new_value_db) => {
-                                    let new_value = util::gain_to_db(new_value_db as f32);
-
-                                    setter.begin_set_parameter(&params.gain);
-                                    setter.set_parameter(&params.gain, new_value);
-                                    setter.end_set_parameter(&params.gain);
-
-                                    new_value_db
-                                }
-                                None => util::gain_to_db(params.gain.value()) as f64,
-                            }
-                        })
-                        .suffix(" dB"),
-                    );
-
-                    ui.label("JavaScript code");
-                    ui.label(display.as_ref().lock().unwrap().clone());
-                    let resp =
-                        ui.add(egui::widgets::TextEdit::multiline(&mut state.code).code_editor());
-
-                    if resp.lost_focus() {
-                        params.code.set_value(state.code.clone());
-                        // setter.begin_set_parameter(&params.code);
-                        // setter.set_parameter(&params.code, state.code.clone());
-                        // setter.end_set_parameter(&params.code);
-
-                        // self.code = state.code.clone(); // WHAT
-                    }
-
-                    // TODO: Add a proper custom widget instead of reusing a progress bar
-                    let peak_meter =
-                        util::gain_to_db(peak_meter.load(std::sync::atomic::Ordering::Relaxed));
-                    let peak_meter_text = if peak_meter > util::MINUS_INFINITY_DB {
-                        format!("{peak_meter:.1} dBFS")
-                    } else {
-                        String::from("-inf dBFS")
-                    };
-
-                    let peak_meter_normalized = (peak_meter + 60.0) / 60.0;
-                    ui.allocate_space(egui::Vec2::splat(2.0));
-                    ui.add(
-                        egui::widgets::ProgressBar::new(peak_meter_normalized)
-                            .text(peak_meter_text),
-                    );
-                });
-            },
         )
     }
 

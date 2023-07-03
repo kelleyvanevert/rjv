@@ -21,6 +21,7 @@ nih_plug = { path = "../nih-plug", features = ["assert_process_allocs"] }
 # the GPL compatibility requirement
 # nih_plug = { git = "../nih-plug", default_features = false, features = ["assert_process_allocs"] }
 nih_plug_egui = { path = "../nih-plug/nih_plug_egui" }
+nih_plug_vizia = { path = "../nih-plug/nih_plug_vizia" }
 js-sandbox = "0.1.6"
 atomic_float = "0.1"
 druid = "0.8.3"
@@ -28,6 +29,11 @@ druid-shell = "0.8.3"
 crossbeam = "0.8.2"
 serde = "1"
 parking_lot = "0.12.1"
+vizia = { git = "https://github.com/robbert-vdh/vizia.git", branch = "patched", default_features = false, features = [
+  "baseview",
+  "clipboard",
+  "x11",
+] }
 
 [profile.release]
 lto = "thin"
