@@ -2,10 +2,7 @@ use atomic_float::AtomicF32;
 use js_sandbox::Script;
 use nih_plug::prelude::*;
 use nih_plug_egui::{create_egui_editor, egui, widgets, EguiState};
-use std::{
-    fmt::format,
-    sync::{Arc, Mutex},
-};
+use std::sync::{Arc, Mutex};
 
 // This is a shortened version of the gain example with most comments removed, check out
 // https://github.com/robbert-vdh/nih-plug/blob/master/plugins/examples/gain/src/lib.rs to get
@@ -172,8 +169,10 @@ impl Plugin for Rjv {
                     // ui.label("Some random integer");
                     // ui.add(widgets::ParamSlider::for_param(&params.some_int, setter));
 
-                    ui.label("Gain");
+                    ui.label("Java");
                     ui.add(widgets::ParamSlider::for_param(&params.gain, setter));
+
+                    ui.heading("JS code");
 
                     ui.label(
                         "Also gain, but with a lame widget. Can't even render the value correctly!",
