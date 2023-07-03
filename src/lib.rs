@@ -4,6 +4,8 @@ use nih_plug::prelude::*;
 use nih_plug_egui::{create_egui_editor, egui, widgets, EguiState};
 use std::sync::{Arc, Mutex};
 
+mod nih_plug_druid;
+
 // This is a shortened version of the gain example with most comments removed, check out
 // https://github.com/robbert-vdh/nih-plug/blob/master/plugins/examples/gain/src/lib.rs to get
 // started
